@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: coderhouse-backend
+    env: node
+    buildCommand: npm install && cd types && yarn && cd ../server && npx tsc --project tsconfig.server.json
+    startCommand: node server/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 2567 

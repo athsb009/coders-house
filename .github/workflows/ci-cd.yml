@@ -1,0 +1,198 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  NODE_VERSION: '18'
+  NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+  NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+  RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+  RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+
+jobs:
+  # Lint and Test
+  lint-and-test:
+    name: Lint and Test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies (Root)
+      run: npm ci --legacy-peer-deps
+      
+    - name: Install dependencies (Types)
+      run: cd types && npm ci --legacy-peer-deps
+      
+    - name: Install dependencies (Client)
+      run: cd client && npm ci --legacy-peer-deps
+      
+    - name: Type check (Server)
+      run: cd server && npx tsc --noEmit --project tsconfig.server.json
+      
+    - name: Type check (Client)
+      run: cd client && npx tsc --noEmit
+      
+    - name: Lint (Server)
+      run: cd server && npx eslint . --ext .ts
+      
+    - name: Lint (Client)
+      run: cd client && npx eslint . --ext .ts,.tsx
+
+  # Build Client
+  build-client:
+    name: Build Client
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies (Client)
+      run: cd client && npm ci --legacy-peer-deps
+      
+    - name: Build client
+      run: cd client && npm run build
+      
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: client-build
+        path: client/dist
+
+  # Build Server
+  build-server:
+    name: Build Server
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies (Root)
+      run: npm ci --legacy-peer-deps
+      
+    - name: Install dependencies (Types)
+      run: cd types && npm ci --legacy-peer-deps
+      
+    - name: Build server
+      run: npm run build
+      
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: server-build
+        path: server/dist
+
+  # Deploy to Netlify (Frontend)
+  deploy-frontend:
+    name: Deploy to Netlify
+    runs-on: ubuntu-latest
+    needs: build-client
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: client-build
+        path: client/dist
+        
+    - name: Deploy to Netlify
+      uses: nwtgck/actions-netlify@v3
+      with:
+        publish-dir: './client/dist'
+        production-branch: main
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        deploy-message: "Deploy from GitHub Actions"
+      env:
+        NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+      timeout-minutes: 1
+
+  # Deploy to Railway (Backend)
+  deploy-backend:
+    name: Deploy to Railway
+    runs-on: ubuntu-latest
+    needs: build-server
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: server-build
+        path: server/dist
+        
+    - name: Setup Railway CLI
+      run: npm install -g @railway/cli
+      
+    - name: Deploy to Railway
+      run: |
+        echo ${{ secrets.RAILWAY_TOKEN }} | railway login
+        railway link --project ${{ secrets.RAILWAY_PROJECT_ID }}
+        railway up
+
+  # Update Environment Variables
+  update-env:
+    name: Update Environment Variables
+    runs-on: ubuntu-latest
+    needs: [deploy-frontend, deploy-backend]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Setup Netlify CLI
+      run: npm install -g netlify-cli
+      
+    - name: Update Netlify Environment Variables
+      run: |
+        netlify env:set VITE_SERVER_URL wss://web-production-249c7.up.railway.app
+      env:
+        NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+
+  # Notify Deployment
+  notify:
+    name: Notify Deployment
+    runs-on: ubuntu-latest
+    needs: [deploy-frontend, deploy-backend, update-env]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Notify on success
+      run: |
+        echo "🚀 Deployment successful!"
+        echo "Frontend: https://candid-queijadas-964325.netlify.app"
+        echo "Backend: https://web-production-249c7.up.railway.app"
+        echo "Repository: https://github.com/athsb009/coders-house" 
