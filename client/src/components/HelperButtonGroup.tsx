@@ -212,7 +212,7 @@ export default function HelperButtonGroup() {
         <Tooltip title="Visit Our GitHub">
           <StyledFab
             size="small"
-            href="https://github.com/thex3family/x3-metaverse"
+            href="https://github.com/athsb009/coders-house"
             target="_blank"
           >
             <GitHubIcon />
