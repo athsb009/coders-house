@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import logo from '../images/logo.png'
-import animatedLogo from '../images/coderhouse_logo.mp4'
+import animatedLogo from '../images/coderhouse_metaverse_intro.mp4'
 import styled from 'styled-components'
 import Button from '@mui/material/Button'
 import IconButton from '@mui/material/IconButton'
