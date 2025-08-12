@@ -37,7 +37,7 @@ A real-time multiplayer virtual office environment built with modern web technol
 
 ## 🚀 Live Demo
 
-**[🌐 Try Coderhouse Metaverse Live](https://candid-queijadas-964325.netlify.app/)**
+**[🌐 Try Coderhouse Metaverse Live](https://coder-house-atharva.netlify.app/)**
 
 ## 🛠️ Tech Stack
 
